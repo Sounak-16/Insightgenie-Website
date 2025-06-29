@@ -8,11 +8,11 @@
 {% block content %}
 <div class="container-fluid py-5 bg-light min-vh-100">
   <div class="row justify-content-center">
-    <div class="col-lg-8">
+    <div class="col-lg-10">
 
-      <!-- Upload CSV -->
-      <div class="card shadow-lg p-4 mb-4 rounded-4">
-        <h2 class="text-center mb-4 text-primary fw-bold">📊 Upload Your CSV</h2>
+      <!-- Upload Section -->
+      <div class="card shadow p-4 mb-4 rounded-4">
+        <h2 class="text-center text-primary mb-4 fw-bold">📊 Upload Your CSV</h2>
 
         {% if messages %}
           {% for message in messages %}
@@ -32,7 +32,7 @@
         </form>
 
         {% if has_file %}
-        <form method="post" class="d-flex justify-content-between mb-3">
+        <form method="post" class="d-flex justify-content-between">
           {% csrf_token %}
           <button name="download_file" class="btn btn-success">⬇️ Download CSV</button>
           <button name="delete_file" class="btn btn-danger">🗑️ Delete CSV</button>
@@ -42,7 +42,7 @@
 
       <!-- Data Preview -->
       {% if data_preview %}
-      <div class="card shadow-sm mb-4 p-4 rounded-4">
+      <div class="card shadow-sm p-4 mb-4 rounded-4">
         <h4 class="text-center text-secondary mb-3">📄 Data Preview</h4>
         <div class="table-responsive">
           {{ data_preview|safe }}
@@ -50,9 +50,9 @@
       </div>
       {% endif %}
 
-      <!-- Summary Stats -->
+      <!-- Summary -->
       {% if summary %}
-      <div class="card shadow-sm mb-4 p-4 rounded-4">
+      <div class="card shadow-sm p-4 mb-4 rounded-4">
         <h4 class="text-center text-secondary mb-3">📈 Summary Statistics</h4>
         <div class="table-responsive">
           {{ summary|safe }}
@@ -60,44 +60,69 @@
       </div>
       {% endif %}
 
-      <!-- Column Chart Dropdown -->
+      <!-- Column + Chart Type Selector -->
       {% if column_options %}
-      <form method="post" class="card shadow-sm mb-4 p-4 rounded-4">
+      <form method="post" class="card shadow-sm p-4 mb-4 rounded-4">
         {% csrf_token %}
-        <div class="mb-3">
-          <label for="column" class="form-label fw-semibold">Choose Column to Visualize</label>
-          <select name="column" class="form-select">
-            {% for col in column_options %}
-              <option value="{{ col }}" {% if col == selected_column %}selected{% endif %}>{{ col }}</option>
-            {% endfor %}
-          </select>
+        <h4 class="text-center text-secondary mb-3">📌 Customize Chart</h4>
+
+        <div class="row mb-3">
+          <div class="col-md-4">
+            <label for="x_column" class="form-label">X-Axis</label>
+            <select name="x_column" class="form-select">
+              {% for col in column_options %}
+                <option value="{{ col }}" {% if col == selected_x %}selected{% endif %}>{{ col }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-md-4">
+            <label for="y_column" class="form-label">Y-Axis (optional)</label>
+            <select name="y_column" class="form-select">
+              <option value="">-- None --</option>
+              {% for col in column_options %}
+                <option value="{{ col }}" {% if col == selected_y %}selected{% endif %}>{{ col }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-md-4">
+            <label for="chart_type" class="form-label">Chart Type</label>
+            <select name="chart_type" class="form-select">
+              <option value="histogram" {% if chart_type == 'histogram' %}selected{% endif %}>Histogram (X only)</option>
+              <option value="bar" {% if chart_type == 'bar' %}selected{% endif %}>Bar</option>
+              <option value="scatter" {% if chart_type == 'scatter' %}selected{% endif %}>Scatter</option>
+              <option value="line" {% if chart_type == 'line' %}selected{% endif %}>Line</option>
+              <option value="box" {% if chart_type == 'box' %}selected{% endif %}>Box</option>
+            </select>
+          </div>
         </div>
+
         <div class="d-grid">
-          <button type="submit" class="btn btn-info">🔄 Update Chart</button>
+          <button type="submit" name="update_chart" class="btn btn-info">🔄 Update Chart</button>
         </div>
       </form>
       {% endif %}
 
-      <!-- Chart Output -->
+      <!-- Chart Area -->
       {% if plot_json %}
-      <div class="card shadow-sm mb-4 p-4 rounded-4">
+      <div class="card shadow-sm p-4 mb-4 rounded-4">
         <h4 class="text-center text-secondary mb-3">📊 Chart</h4>
         <div id="chart-div" style="height: 500px;"></div>
       </div>
       {% endif %}
 
-      <!-- Ask Your Data Chatbot -->
+      <!-- Chatbot Area -->
       {% if has_file %}
       <div class="card shadow-sm p-4 mb-5 rounded-4">
         <h4 class="text-center text-primary mb-3">💬 Ask Your Data</h4>
         <form method="post">
           {% csrf_token %}
           <div class="input-group mb-3">
-            <input type="text" name="question" placeholder="E.g. Show sales vs profit by region" class="form-control" required>
+            <input type="text" name="question" placeholder="E.g. Show price vs area" class="form-control" required>
             <button type="submit" name="ask" class="btn btn-dark">Ask</button>
           </div>
         </form>
-
         {% if answer %}
         <div class="alert alert-info mt-3">
           <strong>🧠 Insight:</strong><br>
@@ -111,113 +136,11 @@
   </div>
 </div>
 
-<!-- ✅ Plotly Script -->
+<!-- Plotly Chart Script -->
 {% if plot_json %}
-  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-  <script>
-    const plotData = {{ plot_json|safe }};
-    Plotly.newPlot('chart-div', plotData.data, plotData.layout);
-  </script>
-{% endif %}
-
-<!-- ✅ Floating Chatbot -->
-<div id="chatbot-container">
-  <div id="bot-toggle">
-    <span>Ask me anything?</span>
-  </div>
-
-  <div id="chat-panel" style="display: none;">
-    <form method="post" id="ask-form">
-      {% csrf_token %}
-      <textarea name="question" placeholder="Ask me about your data..." required></textarea>
-      <button type="submit" name="ask">Ask</button>
-    </form>
-    {% if answer %}
-      <div id="chat-response">
-        <strong>🧠 AI:</strong><br>
-        {{ answer|linebreaks }}
-      </div>
-    {% endif %}
-  </div>
-</div>
-
-<!-- ✅ Toggle Script -->
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 <script>
-  document.getElementById('bot-toggle')?.addEventListener('click', () => {
-    const panel = document.getElementById('chat-panel');
-    if (panel) {
-      panel.style.display = (panel.style.display === 'none') ? 'block' : 'none';
-    }
-  });
+  Plotly.newPlot('chart-div', {{ plot_json|safe }});
 </script>
-
-<!-- ✅ Floating Styles -->
-<style>
-  #chatbot-container {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    max-width: 320px;
-    z-index: 9999;
-    font-family: 'Segoe UI', sans-serif;
-  }
-
-  #bot-toggle {
-    background: #ffffff;
-    border-radius: 40px;
-    padding: 10px 16px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
-    display: flex;
-    align-items: center;
-    cursor: pointer;
-    transition: all 0.3s ease;
-  }
-
-  #bot-toggle span {
-    font-weight: 600;
-    color: #0d6efd;
-    font-size: 16px;
-  }
-
-  #chat-panel {
-    margin-top: 10px;
-    background: #f8f9fa;
-    border-radius: 15px;
-    padding: 15px;
-    box-shadow: 0 0 10px rgba(0,0,0,0.1);
-  }
-
-  #ask-form textarea {
-    width: 100%;
-    height: 60px;
-    border: 1px solid #ccc;
-    border-radius: 10px;
-    padding: 8px;
-    margin-bottom: 8px;
-    resize: none;
-  }
-
-  #ask-form button {
-    width: 100%;
-    background: #0d6efd;
-    color: white;
-    border: none;
-    padding: 8px;
-    border-radius: 10px;
-    font-weight: 600;
-  }
-
-  #ask-form button:hover {
-    background: #0b5ed7;
-  }
-
-  #chat-response {
-    margin-top: 10px;
-    background: #fff;
-    padding: 10px;
-    border-radius: 10px;
-    color: #212529;
-    font-size: 0.9rem;
-  }
-</style>
+{% endif %}
 {% endblock %}

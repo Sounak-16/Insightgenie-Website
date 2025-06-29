@@ -17,24 +17,17 @@ from django.contrib import messages
 
 from .forms import UploadCSVForm
 
-# === Signup View ===
 class SignUpView(CreateView):
     form_class = UserCreationForm
     template_name = 'registration/signup.html'
     success_url = reverse_lazy('login')
 
-
-# === Custom Login View ===
 class CustomLoginView(LoginView):
     template_name = 'users/login.html'
 
-
-# === Custom Logout View ===
 class CustomLogoutView(LogoutView):
     next_page = 'login'
 
-
-# === Ask AI Chatbot Function ===
 def ask_csv_question(df, question):
     if df.empty:
         return "No data available to ask questions about. Please upload a file."
@@ -72,7 +65,6 @@ Question:
         print(f"Unexpected API response: {response.json()}")
         return "Sorry, I received an unexpected response from the AI service."
 
-
 def extract_column_names(question, df_columns):
     matched = []
     question = question.lower()
@@ -81,8 +73,6 @@ def extract_column_names(question, df_columns):
             matched.append(col)
     return matched
 
-
-# === Dashboard View ===
 @login_required
 def dashboard_view(request):
     df = pd.DataFrame()
@@ -91,9 +81,21 @@ def dashboard_view(request):
     form = UploadCSVForm()
     plot_json = None
     column_options = []
-    selected_column = None
+    selected_x = None
+    selected_y = None
     answer = None
-    matched_columns = []
+    chart_type = 'histogram'
+
+    file_path = request.session.get('uploaded_file_path')
+    has_file = bool(file_path)
+    if has_file and os.path.exists(file_path):
+        try:
+            df = pd.read_csv(file_path) if file_path.endswith('.csv') else pd.read_excel(file_path)
+        except Exception as e:
+            messages.error(request, f"Error loading file: {e}")
+            request.session.pop('uploaded_file_path', None)
+            df = pd.DataFrame()
+            has_file = False
 
     if request.method == 'POST':
         if 'file' in request.FILES:
@@ -106,99 +108,62 @@ def dashboard_view(request):
                 request.session['uploaded_file_path'] = file_path
                 messages.success(request, "File uploaded successfully!")
                 return redirect('dashboard')
-            else:
-                messages.error(request, "Error uploading file.")
 
-        file_path = request.session.get('uploaded_file_path')
-        has_file = bool(file_path)
-
-        if file_path and os.path.exists(file_path):
-            try:
-                df = pd.read_csv(file_path) if file_path.endswith('.csv') else pd.read_excel(file_path)
-            except Exception as e:
-                messages.error(request, f"Error loading file: {e}")
-                request.session.pop('uploaded_file_path', None)
-                df = pd.DataFrame()
-                has_file = False
-
-        if 'ask' in request.POST and has_file:
-            question = request.POST.get('question')
-            matched_columns = extract_column_names(question, df.columns)
-            if len(matched_columns) == 0:
-                answer = "❌ Sorry, I couldn't identify any matching column names in your question."
-            elif len(matched_columns) == 1:
-                x = matched_columns[0]
-                fig = px.histogram(df, x=x, title=f"Histogram of {x}")
-                plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-                answer = f"🧠 Here's a histogram of {x}."
-            elif len(matched_columns) == 2:
-                x, y = matched_columns[:2]
-                fig = px.scatter(df, x=x, y=y, title=f"{y} vs {x}")
-                plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-                answer = f"🧠 Here's a scatter plot of {y} vs {x}."
-            elif len(matched_columns) >= 3:
-                x, y, z = matched_columns[:3]
-                fig = px.scatter_3d(df, x=x, y=y, z=z, title=f"3D Plot of {x}, {y}, {z}")
-                plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-                answer = f"🧠 Here's a 3D scatter plot for {x}, {y}, and {z}."
+        elif 'download_file' in request.POST:
+            if file_path and os.path.exists(file_path):
+                return FileResponse(open(file_path, 'rb'), as_attachment=True)
 
         elif 'delete_file' in request.POST:
-            file_path = request.session.get('uploaded_file_path')
             if file_path and os.path.exists(file_path):
                 os.remove(file_path)
                 messages.success(request, "File deleted successfully.")
-            request.session.pop('uploaded_file_path', None)
-            return redirect('dashboard')
-
-        elif 'download_file' in request.POST:
-            file_path = request.session.get('uploaded_file_path')
-            if file_path and os.path.exists(file_path):
-                return FileResponse(open(file_path, 'rb'), as_attachment=True)
-            else:
-                messages.error(request, "No file to download.")
+                request.session.pop('uploaded_file_path', None)
                 return redirect('dashboard')
 
-        elif 'column' in request.POST:
-            selected_column = request.POST.get('column')
+        elif 'update_chart' in request.POST and has_file:
+            selected_x = request.POST.get('x_column')
+            selected_y = request.POST.get('y_column')
+            chart_type = request.POST.get('chart_type', 'histogram')
 
-    else:
-        file_path = request.session.get('uploaded_file_path')
-        has_file = bool(file_path)
-        if file_path and os.path.exists(file_path):
             try:
-                df = pd.read_csv(file_path) if file_path.endswith('.csv') else pd.read_excel(file_path)
+                if selected_x and selected_x in df.columns:
+                    x_data = pd.to_numeric(df[selected_x], errors='coerce') if df[selected_x].dtype != 'object' else df[selected_x]
+
+                    if selected_y and selected_y in df.columns:
+                        y_data = pd.to_numeric(df[selected_y], errors='coerce') if df[selected_y].dtype != 'object' else df[selected_y]
+
+                        if chart_type == 'scatter':
+                            fig = px.scatter(df, x=selected_x, y=selected_y, title=f"{selected_y} vs {selected_x}")
+                        elif chart_type == 'line':
+                            fig = px.line(df, x=selected_x, y=selected_y, title=f"{selected_y} over {selected_x}")
+                        elif chart_type == 'bar':
+                            fig = px.bar(df, x=selected_x, y=selected_y, title=f"{selected_y} by {selected_x}")
+                        else:
+                            fig = px.histogram(df, x=selected_x, title=f"Histogram of {selected_x}")
+                    else:
+                        if chart_type == 'box':
+                            fig = px.box(df, y=x_data, title=f"Box Plot of {selected_x}")
+                        elif chart_type == 'line':
+                            fig = px.line(df, y=x_data, title=f"Line Chart of {selected_x}")
+                        elif chart_type == 'bar':
+                            value_counts = df[selected_x].value_counts().nlargest(10)
+                            fig = px.bar(x=value_counts.index, y=value_counts.values,
+                                         title=f"Bar Chart of {selected_x}")
+                        else:
+                            fig = px.histogram(df, x=x_data, nbins=20, title=f"Histogram of {selected_x}")
+
+                    fig.update_layout(margin=dict(l=20, r=20, t=40, b=20), height=400)
+                    plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+
             except Exception as e:
-                messages.error(request, f"Failed to load file: {e}")
-                request.session.pop('uploaded_file_path', None)
-                df = pd.DataFrame()
-                has_file = False
+                messages.warning(request, f"Failed to generate chart: {e}")
 
     if not df.empty:
         data_preview = df.head().to_html(classes='table table-striped')
         summary = df.describe(include='all').to_html(classes='table table-bordered')
-        numeric_cols = df.select_dtypes(include='number').columns.tolist()
-        column_options = numeric_cols
-        if not selected_column and numeric_cols:
-            selected_column = numeric_cols[0]
-
-        if selected_column and selected_column in df.columns:
-            try:
-                cleaned_series = pd.to_numeric(df[selected_column], errors='coerce').dropna()
-                if not cleaned_series.empty:
-                    fig = px.histogram(cleaned_series, x=cleaned_series, nbins=20,
-                                       title=f"Distribution of {selected_column}")
-                    fig.update_layout(margin=dict(l=20, r=20, t=40, b=20), height=400)
-                    plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-                else:
-                    plot_json = None
-                    messages.warning(request, f"No numeric data found in '{selected_column}' to plot.")
-            except Exception as e:
-                print(f"Error generating plot for {selected_column}: {e}")
-                plot_json = None
-                messages.warning(request, f"Could not generate plot for '{selected_column}'. Error: {e}")
-    else:
-        data_preview = "<p>No data uploaded yet.</p>"
-        summary = "<p>Upload a CSV or Excel file to see its summary.</p>"
+        column_options = df.columns.tolist()
+        if not selected_x and column_options:
+            selected_x = column_options[0]
 
     return render(request, 'users/dashboard.html', {
         'form': form,
@@ -206,7 +171,9 @@ def dashboard_view(request):
         'summary': summary,
         'plot_json': plot_json,
         'column_options': column_options,
-        'selected_column': selected_column,
+        'selected_x': selected_x,
+        'selected_y': selected_y,
         'has_file': has_file,
         'answer': answer,
+        'chart_type': chart_type,
     })
