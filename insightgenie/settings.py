@@ -19,7 +19,7 @@ SECRET_KEY = "django-insecure-!!mrx52%v6qlm*geuqyq5%o2*4we)hbxif4jj7ds_)ayif=9@!
 
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["https://insightgenie-website.onrender.com"]
 
 # Application definition
 INSTALLED_APPS = [
@@ -100,7 +100,7 @@ LOGIN_REDIRECT_URL = "dashboard"
 LOGOUT_REDIRECT_URL = "login"
 
 # Together.ai Key
-TOGETHER_API_KEY = "68be9e06b92aa36acea86801a6c488544c3883a55d480f01a970017ab1725b35"
+TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY")
 
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
 CRISPY_TEMPLATE_PACK = "bootstrap5"
