@@ -19,13 +19,5 @@ An AI-powered data dashboard that allows you to upload CSVs, visualize charts dy
 - Plotly
 - Together.ai API (Mistral 7B)
 
-## 📦 Setup
 
-```bash
-git clone https://github.com/Sounak-16/Insightgenie-Website.git
-cd Insightgenie-Website
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python manage.py runserver
 
