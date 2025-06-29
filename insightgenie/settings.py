@@ -19,7 +19,8 @@ SECRET_KEY = "django-insecure-!!mrx52%v6qlm*geuqyq5%o2*4we)hbxif4jj7ds_)ayif=9@!
 
 DEBUG = True
 
-ALLOWED_HOSTS = ["https://insightgenie-website.onrender.com"]
+ALLOWED_HOSTS = ['insightgenie-website.onrender.com', 'localhost', '127.0.0.1']
+
 
 # Application definition
 INSTALLED_APPS = [
